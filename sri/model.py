@@ -16,14 +16,14 @@ from sri.utils import init_weights, mvn, std_mvn
 class AutoregressivePrior(nn.Module):
     def __init__(self, scene_latent_dim, feat_dim):
         super(AutoregressivePrior, self).__init__()
-        self.token_encoder = nn.Sequential(
+        self.scene_encoder = nn.Sequential(
             nn.Linear(scene_latent_dim, feat_dim),
             nn.GELU()
         )
         self.lstm = nn.LSTM(feat_dim, 4*feat_dim)
         self.sp = nn.Linear(4*feat_dim, feat_dim)
         self.mu = nn.Linear(4*feat_dim, feat_dim)
-        init_weights(self.token_encoder, 'xavier')
+        init_weights(self.scene_encoder, 'xavier')
         init_weights(self.lstm, 'xavier')
         init_weights(self.sp, 'xavier')
         init_weights(self.mu, 'xavier')
@@ -35,7 +35,7 @@ class AutoregressivePrior(nn.Module):
         z ~ q(z_o1:K | s, x) is a List 
         q_z is a List of mvn, the autoregressive posteriors
         """
-        s = self.token_encoder(s)
+        s = self.scene_encoder(s)
         # Throw out the last mean for autoregressive processing
         z = torch.stack(z[:-1],0)  # [num_slots-1,batch_size,z_size]
         z = torch.cat((s.unsqueeze(0), z), 0) # [num_slots, batch_size, z_size]
@@ -57,7 +57,7 @@ class AutoregressivePrior(nn.Module):
         num_slots is int 
         Xs are for computing ordered posterior X --> permuted means
         """
-        input = self.token_encoder(S)
+        input = self.scene_encoder(S)
         input = input.unsqueeze(0)  # [1,batch_size,z_size]
         state = None
         zs, p_zs = [], []
@@ -78,13 +78,13 @@ class AutoregressivePrior(nn.Module):
 class AutoregressivePosterior(nn.Module):
     def __init__(self, scene_latent_dim, feat_dim):
         super(AutoregressivePosterior, self).__init__()
-        self.token_encoder = nn.Sequential(
+        self.scene_encoder = nn.Sequential(
             nn.Linear(scene_latent_dim, feat_dim),
             nn.GELU()
         )
         self.lstm = nn.LSTM(feat_dim, 4*feat_dim)
         self.sp = nn.Linear(4*feat_dim, feat_dim)
-        init_weights(self.token_encoder, 'xavier')
+        init_weights(self.scene_encoder, 'xavier')
         init_weights(self.lstm, 'xavier')
         init_weights(self.sp, 'xavier')
 
@@ -94,7 +94,7 @@ class AutoregressivePosterior(nn.Module):
         S is a scene latent sample, [batch_size, scene_latent_dim]
         Xs are for computing ordered posterior X --> permuted means
         """
-        S = self.token_encoder(S)
+        S = self.scene_encoder(S)
         # Throw out the last mean for autoregressive processing
         X = X[:,:-1] 
         X = torch.cat((S.unsqueeze(1), X), 1) # [batch_size, num_slots, z_size]
