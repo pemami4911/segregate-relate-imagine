@@ -1,0 +1,4 @@
+*.slurm
+*.error
+*.output
+*/__pycache__/*.pyc
