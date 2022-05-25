@@ -3,6 +3,10 @@
 A minimal implementation of SRI on top of GENESIS-v2 (MoG likelihood). The SRI model code can be found in `./sri/model.py`.
 Currently only supports training on ShapeStacks, with other datasets and evaluation code coming soon.
 
+## Global Latent Variable Random Walks
+
+![ShapeStacks](./videos/SRI_shapestacks_random_walk.mp4) ![ObjectsRoom](./videos/SRI_objects_room_random_walk.mp4) ![CLEVR6](./videos/SRI_clevr6_random_walk.mp4)
+
 ## Installation
 
 With conda and Python 3.8
@@ -10,10 +14,6 @@ With conda and Python 3.8
 conda create -n sri python=3.8
 pip install -r requirements.txt
 ```
-
-## Global Latent Variable Random Walks
-
-![ShapeStacks](./videos/SRI_shapestacks_random_walk.gif) ![ObjectsRoom](./videos/SRI_objects_room_random_walk.gif) ![CLEVR6](./videos/SRI_clevr6_random_walk.gif)
 
 ## ShapeStacks
 
