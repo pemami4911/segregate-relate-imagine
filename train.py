@@ -284,7 +284,7 @@ if __name__ == '__main__':
                         help='number of pytorch dataloader workers')
     parser.add_argument('--mode', type=str, default='train',
                         help='train/val/test')
-    parser.add_argument('--data_dir', type=str, default='/blue/ranka/pemami/shapestacks',
+    parser.add_argument('--data_dir', type=str, default='',
                         help='$PATH_TO/shapestacks')
     parser.add_argument('--iters', type=int, default=500000, 
                         help='number of training steps')
