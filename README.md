@@ -5,7 +5,18 @@ Currently only supports training on ShapeStacks, with other datasets and evaluat
 
 ## Global Latent Variable Random Walks
 
-![ShapeStacks](./videos/SRI_shapestacks_random_walk.mp4) ![ObjectsRoom](./videos/SRI_objects_room_random_walk.mp4) ![CLEVR6](./videos/SRI_clevr6_random_walk.mp4)
+
+
+https://user-images.githubusercontent.com/6277085/170290423-9c84d269-d489-4aa1-8d95-d9f7219ea7d7.mp4
+
+
+
+https://user-images.githubusercontent.com/6277085/170290495-dc960061-de7b-44fc-807f-0c8dfbabb3c1.mp4
+
+
+
+https://user-images.githubusercontent.com/6277085/170290508-ec7c5790-f883-47e3-b1d5-8d63fb4d7d90.mp4
+
 
 ## Installation
 
