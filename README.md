@@ -40,6 +40,8 @@ wget http://shapestacks-file.robots.ox.ac.uk/static/download/v1/shapestacks-iseg
 
 ## Training
 
+Replace bash variables (all caps starting with `$`) with the appropriate values for your environment.
+
 ```shell
 python3 -m torch.distributed.run --nproc_per_node=1 --rdzv_endpoint='127.0.0.1':29274 train.py --DDP_port=29274 --out_dir=$OUT_DIR --data_dir=$DATA_DIR --batch_size=32 --seed=42 --run_suffix='sri_shapestacks' --tqdm
 ```
@@ -47,12 +49,12 @@ python3 -m torch.distributed.run --nproc_per_node=1 --rdzv_endpoint='127.0.0.1':
 ## Computing FID score
 
 ```shell
-python3 -m torch.distributed.run --nproc_per_node=1 --rdzv_endpoint='127.0.0.1':29750 compute_fid.py --DDP_port=29750 --checkpoint_dir=$RESULTS_DIR --data_dir=$DATA_DIR --checkpoint=$CHECKPOINT --seed=1
+python3 -m torch.distributed.run --nproc_per_node=1 --rdzv_endpoint='127.0.0.1':29750 compute_fid.py --DDP_port=29750 --checkpoint_dir=$CHECKPOINT_DIR --data_dir=$DATA_DIR --checkpoint=$CHECKPOINT --seed=1
 ```
 
 ## Model weights
 
-We provide trained weights for SRI-MoG trained on ShapeStacks at `./model/sri_shapestacks`. It achieves an FID score of ~68. 
+We provide trained weights for SRI-MoG trained on ShapeStacks at `./model/sri_shapestacks.pth`. It achieves an FID score of ~68. 
 
 ## Citation
 
