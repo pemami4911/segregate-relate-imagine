@@ -58,4 +58,11 @@ We provide trained weights for SRI-MoG trained on ShapeStacks at `./model/sri_sh
 
 ## Citation
 
-TBD
+```
+@article{emami2022slot,
+  title={Slot Order Matters for Compositional Scene Understanding},
+  author={Emami, Patrick and He, Pan and Ranka, Sanjay and Rangarajan, Anand},
+  journal={arXiv preprint arXiv:2206.01370},
+  year={2022}
+}
+```
