@@ -11,7 +11,7 @@ from tqdm import tqdm
 from third_party.genesis_v2.geco import GECO
 from third_party.genesis_v2.shapestacks_config import ShapeStacksDataset
 from sri.visualization import visualise_outputs
-from sri.model import SRI
+from sri.fixed_order_model import FixedOrderSRI
 import argparse
 
 local_rank = os.environ['LOCAL_RANK']
@@ -75,10 +75,11 @@ def run(training, seed):
             worker_init_fn=worker_init_fn,
             drop_last=True)
 
-    model = SRI(training['K'], training['pixel_bound'], training['z_dim'], 
-                training['semiconv'], training['kernel'], training['pixel_std'],
-                training['dynamic_K'], training['image_likelihood'], training['debug'],
-                training['img_size'], training['s_dim'], training['L'])
+    model = FixedOrderSRI(training['slot_attention_iters'], training['K'],
+                          training['pixel_bound'], training['z_dim'], 
+                          training['pixel_std'], training['image_likelihood'], 
+                          training['img_size'], training['s_dim'], training['L'])
+    
     num_elements = 3 * model.img_size**2  # Assume three input channels
 
     # Goal is specified per pixel & channel so it doesn't need to
@@ -86,9 +87,6 @@ def run(training, seed):
     geco_goal = training['g_goal'] * num_elements
     # Scale step size to get similar update at different resolutions
     geco_lr = training['g_lr'] * (64**2 / model.img_size**2)
-    geco = GECO(geco_goal, geco_lr, training['g_alpha'], training['g_init'],
-                training['g_min'], training['g_speedup'])
-    beta = geco.beta
 
     geco_sri = GECO(geco_goal, geco_lr, training['g_alpha'], training['g_init'],
             training['g_min'], training['g_speedup'])
@@ -98,7 +96,6 @@ def run(training, seed):
     
     # Optimization
     model_opt = torch.optim.Adam(model.parameters(), lr=training['learning_rate'])
-    geco.to_cuda()
     geco_sri.to_cuda()
     # Try to restore model and optimiser from checkpoint
     iter_idx = 0
@@ -109,10 +106,7 @@ def run(training, seed):
         model.load_state_dict(state['model_state_dict'], strict=True)
         model_opt.load_state_dict(state['optimiser_state_dict'])
         iter_idx = state['iter_idx'] + 1
-        if 'beta' in state:
-            geco.beta = state['beta']
-        if 'err_ema' in state:
-            geco.err_ema = state['err_ema']
+
         if 'beta_sri' in state:
             geco_sri.beta = state['beta_sri']
         if 'err_sri_ema' in state:
@@ -154,94 +148,56 @@ def run(training, seed):
 
             # Forward propagation
             model_opt.zero_grad()
-            (output, sri_output), losses, stats, att_stats, comp_stats = model(train_input)
+            sri_output, losses, stats = model(train_input)
            
             # Reconstruction errors
-            err = losses.genv2_err.mean(0)
-            err_sri = losses.sri_err.mean(0)
+            err_sri = losses['sri_err'].mean(0)
             # KL divergences
-            kl_m, kl_l = torch.tensor(0), torch.tensor(0)
-                # -- KL stage 1
-            if 'kl_m' in losses:
-                kl_m = losses.kl_m.mean(0)
-            elif 'kl_m_k' in losses:
-                kl_m = torch.stack(losses.kl_m_k, dim=1).mean(dim=0).sum()
-            # -- KL stage 2
-            if 'kl_l' in losses:
-                kl_l = losses.kl_l.mean(0)
-            elif 'kl_l_k' in losses:
-                kl_l = torch.stack(losses.kl_l_k, dim=1).mean(dim=0).sum()
-
             # -- KL scene
-            kl_scene = losses.sri_kl_scene
+            kl_scene = losses['sri_kl_scene']
             if kl_scene is not None:
                 kl_scene = kl_scene.mean(0)
-            # -- KL z ordered (scene composition)
-            kl_rollout = losses.sri_kl_z_ordered.mean(0)
-            # -- Imagined KL
-            kl_slot = losses.sri_kl_slot.mean(0)
 
-            # Compute ELBOs
-            elbo = (err + kl_l + kl_m).detach()
+            kl_slot = losses['sri_kl_slot'].mean(0)
+
+
             # Compute MSE / RMSE
-            mse_batched = ((train_input-output)**2).mean((1, 2, 3)).detach()
+            mse_batched = ((train_input-sri_output)**2).mean((1, 2, 3)).detach()
             rmse_batched = mse_batched.sqrt()
             mse, rmse = mse_batched.mean(0), rmse_batched.mean(0)
             
-            kl = kl_scene + kl_rollout + kl_slot
+            kl = kl_scene + kl_slot
             sri_elbo = (err_sri + kl)
             
             # Main objective
             
-            beta = geco.beta
-            loss = geco.loss(err, kl_l + kl_m)
-            
             beta_sri = geco_sri.beta
             loss_sri = geco_sri.loss(err_sri, kl)
 
-            total_loss = loss + loss_sri
-
             # Backprop and optimise
-            total_loss.backward()
+            loss_sri.backward()
 
             model_opt.step()
             
             # Heartbeat log
-            if not training['debug'] and iter_idx % training['tensorboard_freq'] == 0 and iter_idx > 0 and local_rank == 'cuda:0':
+            if iter_idx % training['tensorboard_freq'] == 0 and iter_idx > 0 and local_rank == 'cuda:0':
                 # TensorBoard logging
                 # -- Optimisation stats
-                writer.add_scalar('optim/beta', beta, iter_idx)
+                writer.add_scalar('optim/beta', beta_sri, iter_idx)
                 writer.add_scalar('optim/geco_err_ema',
-                                    geco.err_ema, iter_idx)
+                                    geco_sri.err_ema, iter_idx)
                 writer.add_scalar('optim/geco_err_ema_element',
-                                    geco.err_ema/num_elements, iter_idx)
+                                    geco_sri.err_ema/num_elements, iter_idx)
                 # -- Main loss terms
-                writer.add_scalar('train/err', err, iter_idx)
-                writer.add_scalar('train/err_element', err/num_elements, iter_idx)
-                writer.add_scalar('train/kl_m', kl_m, iter_idx)
-                writer.add_scalar('train/kl_l', kl_l, iter_idx)
-                writer.add_scalar('train/elbo', elbo, iter_idx)
-                writer.add_scalar('train/loss', loss, iter_idx)
+
                 writer.add_scalar('train/mse', mse, iter_idx)
                 writer.add_scalar('train/rmse', rmse, iter_idx)
-
-                writer.add_scalar('optim/beta_sri', beta_sri, iter_idx)
-                writer.add_scalar('optim/geco_err_sri_ema',
-                                    geco_sri.err_ema, iter_idx)
                 writer.add_scalar('train/err_sri', err_sri, iter_idx)
                 if kl_scene is not None:
                     writer.add_scalar('train/kl_scene', kl_scene, iter_idx)
-                writer.add_scalar('train/kl_rollout', kl_rollout, iter_idx)
                 writer.add_scalar('train/kl_slot', kl_slot, iter_idx)
                 writer.add_scalar('train/elbo_sri', sri_elbo, iter_idx)
                 writer.add_scalar('train/loss_loss', loss_sri, iter_idx)
-
-                # -- Per step loss terms
-                for key in ['kl_l_k', 'kl_m_k']:
-                    if key not in losses: continue
-                    for step, val in enumerate(losses[key]):
-                        writer.add_scalar(f'train_steps/{key}{step}',
-                                          val.mean(0), iter_idx)
 
                 # Visualise model outputs
                 visualise_outputs(model, train_input, writer, 'train', iter_idx)
@@ -252,8 +208,8 @@ def run(training, seed):
                 prefix = training['run_suffix']
                 save_checkpoint(
                     checkpoint_dir / f'{prefix}-state-{iter_idx}.pth',
-                    model.module, model_opt, [beta, beta_sri],
-                    [geco.err_ema, geco_sri.err_ema], iter_idx, False)
+                    model.module, model_opt, [beta_sri],
+                    [geco_sri.err_ema], iter_idx, False)
 
             
             if iter_idx >= training['iters']:
@@ -304,8 +260,7 @@ if __name__ == '__main__':
                         help='output folder for results')
     parser.add_argument('--tqdm', action='store_true', default=False,
                         help='show training progress in CLI')
-    parser.add_argument('--debug', action='store_true', default=False,
-                        help='run code in debug mode')
+
     # model
     parser.add_argument('--g_goal', type=float, default=0.5655,
                         help='GECO recon goal')
@@ -329,16 +284,8 @@ if __name__ == '__main__':
     parser.add_argument('--K', type=int, default=9,
                         help='number of slots')       
     ###########################################                                                             
-    parser.add_argument('--kernel', type=str, default='gaussian',
-                        help='{laplacian,gaussian,epanechnikov}')
-    parser.add_argument('--semiconv', action='store_true', default=True,
-                        help='semiconv for GENESISv2')
-    parser.add_argument('--dynamic_K', action='store_true', default=False,
-                        help='dynamic_K for GENESISv2')
-    parser.add_argument('--klm_loss', action='store_true', default=False,
-                        help='klm_loss for GENESISv2')
-    parser.add_argument('--detach_mr_in_klm', action='store_true', default=True,
-                        help='detach_mr_in_klm for GENESISv2')
+    parser.add_argument('--slot_attention_iters', type=int, default=3, 
+                        help='number of iterations in slot attention')
     parser.add_argument('--pixel_bound',  action='store_true', default=True,
                         help='constrain decoder outputs')
     parser.add_argument('--img_size', type=int, default=64,

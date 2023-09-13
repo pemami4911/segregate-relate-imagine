@@ -54,9 +54,11 @@ def _softplus_to_std(softplus):
     softplus = torch.min(softplus, torch.ones_like(softplus)*80)
     return torch.sqrt(torch.log(1. + softplus.exp()) + 1e-5)
 
+
 def mvn(loc, softplus, temperature=1.0):
     return torch.distributions.independent.Independent(
             torch.distributions.normal.Normal(loc, _softplus_to_std(softplus) * temperature), 1)
+
 
 def std_mvn(shape, device, temperature=1.0):
     loc = torch.zeros(shape).to(device)
