@@ -110,6 +110,67 @@ def visualise_outputs(model, vis_batch, writer, mode, iter_idx):
     
     model.train()
 
+
+def visualise_outputs_fixed_order_model(model, vis_batch, writer, mode, iter_idx):
+    
+    model.eval()
+    
+    # Only visualise for eight images
+    # Forward pass
+    vis_input = vis_batch[:8]
+    if next(model.parameters()).is_cuda:
+        vis_input = vis_input.cuda()
+    with torch.no_grad():
+        output, losses, stats = model(vis_input)
+    
+    # Input and recon
+    writer.add_image(mode+'_input', make_grid(vis_batch[:8]), iter_idx)
+    writer.add_image(mode+'_recon', make_grid(output), iter_idx)
+    
+    # Instance segmentations
+    # if 'instances' in vis_batch:
+    #     grid = make_grid(colour_seg_masks(vis_batch['instances'][:8]))
+    #     writer.add_image(mode+'_instances_gt', grid, iter_idx)
+    # Segmentation predictions
+    for field in ['log_m_k', 'log_m_r_k']:
+        if field in stats:
+            log_masks = stats[field]
+        else:
+            continue
+        ins_seg = torch.argmax(torch.cat(log_masks, 1), 1, True)
+        grid = make_grid(colour_seg_masks(ins_seg))
+        if field == 'log_m_k':
+            writer.add_image(mode+'_instances', grid, iter_idx)
+        elif field == 'log_m_r_k':
+            writer.add_image(mode+'_instances_r', grid, iter_idx)
+    # Decomposition
+    for key in ['mx_r_k', 'x_r_k', 'log_m_k', 'log_m_r_k']:
+        if key not in stats:
+            continue
+        for step, val in enumerate(stats[key]):
+            if 'log' in key:
+                val = val.exp()
+            writer.add_image(f'{mode}_{key}/k{step}', make_grid(val), iter_idx)
+    
+    # Generation
+    try:
+        output, stats = model.module.sample(batch_size=8, K_steps=model.module.K_steps, temp=1)
+        writer.add_image('samples', make_grid(output), iter_idx)
+        for key in ['x_k', 'log_m_k', 'mx_k']:
+            if key not in stats:
+                continue
+            for step, val in enumerate(stats[key]):
+                if 'log' in key:
+                    val = val.exp()
+                writer.add_image(f'gen_{key}/k{step}', make_grid(val),
+                                    iter_idx)
+        
+    except NotImplementedError:
+        print("Sampling not implemented for this model.")
+    
+    model.train()
+
+
 def get_mask_plot_colors(nr_colors):
     colours = np.array(
            [[198,55,210],

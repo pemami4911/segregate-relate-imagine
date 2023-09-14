@@ -34,7 +34,7 @@ class FixedOrderSlotAttention(nn.Module):
         self.epsilon = epsilon
 
         self.positional_embedding = FixedOrderSlotAttention.create_positional_embedding(
-            img_size, img_size, 1)
+            img_size, img_size)
         self.positional_embedding_projection = nn.Linear(4, self.slot_size)
 
         self.encoder = UNet(
@@ -51,12 +51,12 @@ class FixedOrderSlotAttention(nn.Module):
         self.norm_mlp = nn.LayerNorm(self.slot_size)
 
         # Parameters for Gaussian init (no weight-sharing across slots)
-        self.slots_mu = torch.FloatTensor([1, self.num_slots, self.slot_size])
+        self.slots_mu = torch.FloatTensor(1, self.num_slots, self.slot_size)
         # init a torch.FloatTensor with 'he_uniform'
         nn.init.kaiming_uniform_(self.slots_mu)
         self.slots_mu = nn.Parameter(self.slots_mu)
 
-        self.slots_log_sigma = torch.FloatTensor([1, self.num_slots, self.slot_size])
+        self.slots_log_sigma = torch.FloatTensor(1, self.num_slots, self.slot_size)
         nn.init.kaiming_uniform_(self.slots_log_sigma)
         self.slots_log_sigma = nn.Parameter(self.slots_log_sigma)
                                      
@@ -67,11 +67,11 @@ class FixedOrderSlotAttention(nn.Module):
 
         # Slot update functions.
         self.gru = nn.GRU(self.slot_size, self.slot_size)
-        self.mlp = nn.Sequential([
+        self.mlp = nn.Sequential(
             nn.Linear(self.slot_size, self.mlp_hidden_size),
             nn.ReLU(True),
             nn.Linear(self.mlp_hidden_size, self.slot_size)
-        ])
+        )
 
 
     @staticmethod
@@ -83,7 +83,7 @@ class FixedOrderSlotAttention(nn.Module):
         return torch.cat([dist_right, dist_left, dist_top, dist_bottom],2).unsqueeze(0)
 
 
-    def call(self, inputs, mask=None):
+    def forward(self, inputs):
         """
         Args:
             inputs: image tensor [N, C, H, W]
@@ -108,7 +108,9 @@ class FixedOrderSlotAttention(nn.Module):
         v = self.project_v(inputs)  # Shape: [batch_size, H*W, slot_size].
        
         # Initialize the slots. Shape: [batch_size, num_slots, slot_size].
-        slots = torch.distributions.normal.Normal(self.slots_mu, torch.exp(self.slots_log_sigma)).rsample()
+        slots_mu = self.slots_mu.repeat(inputs.shape[0], 1, 1)
+        slots_log_sigma = self.slots_log_sigma.repeat(inputs.shape[0], 1, 1)
+        slots = torch.distributions.normal.Normal(slots_mu, torch.exp(slots_log_sigma)).rsample()
 
         # Multiple rounds of attention.
         # return slots, unorm_attn
@@ -126,7 +128,7 @@ class FixedOrderSlotAttention(nn.Module):
             # Slot Attention normalization
             attn = attn / attn.sum(dim=-1, keepdim=True)
             updates = torch.einsum('bjd,bij->bid', v, attn)  # [batch_size, num_slots, slot_size]
-
+            
             slots, _ = self.gru(
                     updates.reshape(1,-1,self.slot_size),  # [1, batch_size*num_slots, slot_size]
                     slots_prev.reshape(1,-1,self.slot_size))  
@@ -223,7 +225,8 @@ class FixedOrderSRI(nn.Module):
         # Map the ordered set of output slots to posteriors over z
         mu, sigma_ps = self.z_head(slots).reshape(batch_size * self.K_steps, -1).chunk(2, dim=1)
         sigma = B.to_sigma(sigma_ps)
-
+        mu = mu.reshape(batch_size, self.K_steps, -1)
+        sigma = sigma.reshape(batch_size, self.K_steps, -1)
         mu = torch.tensor_split(mu, self.K_steps, dim=1)
         mu = [_.squeeze(1) for _ in mu]
         sigma = torch.tensor_split(sigma, self.K_steps, dim=1)

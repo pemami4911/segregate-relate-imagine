@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from third_party.genesis_v2.geco import GECO
 from third_party.genesis_v2.shapestacks_config import ShapeStacksDataset
-from sri.visualization import visualise_outputs
+from sri.visualization import visualise_outputs_fixed_order_model
 from sri.fixed_order_model import FixedOrderSRI
 import argparse
 
@@ -23,9 +23,7 @@ def save_checkpoint(ckpt_file, model, optimiser, beta, geco_err_ema,
     ckpt_dict = {'model_state_dict': model.state_dict(),
                 'optimiser_state_dict': optimiser.state_dict(),
                 'beta': beta[0],
-                'beta_sri': beta[1],
                 'err_ema': geco_err_ema[0],
-                'err_sri_ema': geco_err_ema[1],
                 'iter_idx': iter_idx}
 
     torch.save(ckpt_dict, ckpt_file)
@@ -43,7 +41,7 @@ def run(training, seed):
 
     tb_dbg = tb_dir / (training['run_suffix'] + '_' + datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))
 
-    if local_rank == 'cuda:0' and not training['debug']:
+    if local_rank == 'cuda:0':
         print(f'Creating SummaryWriter! ({local_rank})')
         writer = SummaryWriter(tb_dbg)
         
@@ -106,11 +104,8 @@ def run(training, seed):
         model.load_state_dict(state['model_state_dict'], strict=True)
         model_opt.load_state_dict(state['optimiser_state_dict'])
         iter_idx = state['iter_idx'] + 1
-
-        if 'beta_sri' in state:
-            geco_sri.beta = state['beta_sri']
-        if 'err_sri_ema' in state:
-            geco_sri.err_ema = state['err_sri_ema']
+        geco_sri.beta = state['beta']
+        geco_sri.err_ema = state['err_ema']
 
         
         # Update starting iter
@@ -200,7 +195,7 @@ def run(training, seed):
                 writer.add_scalar('train/loss_loss', loss_sri, iter_idx)
 
                 # Visualise model outputs
-                visualise_outputs(model, train_input, writer, 'train', iter_idx)
+                visualise_outputs_fixed_order_model(model, train_input, writer, 'train', iter_idx)
 
             if (iter_idx % training['checkpoint_freq'] == 0 and 
                 local_rank == 'cuda:0'):
@@ -219,7 +214,7 @@ def run(training, seed):
         epoch += 1
 
     # Close writer
-    if local_rank == 'cuda:0' and not training['debug']:
+    if local_rank == 'cuda:0':
         writer.close()
 
 if __name__ == '__main__':
