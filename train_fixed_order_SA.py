@@ -77,7 +77,6 @@ def run(training, seed):
                           training['pixel_bound'], training['z_dim'], 
                           training['pixel_std'], training['image_likelihood'], 
                           training['img_size'], training['s_dim'], training['L'])
-    
     num_elements = 3 * model.img_size**2  # Assume three input channels
 
     # Goal is specified per pixel & channel so it doesn't need to
@@ -241,9 +240,9 @@ if __name__ == '__main__':
                         help='number of training steps')
     parser.add_argument('--learning_rate', type=float, default=0.0001,
                         help='learning rate for Adam')
-    parser.add_argument('--tensorboard_freq', type=int, default=200,
+    parser.add_argument('--tensorboard_freq', type=int, default=4000,
                         help='how often to write to TB')
-    parser.add_argument('--checkpoint_freq', type=int, default=25000,
+    parser.add_argument('--checkpoint_freq', type=int, default=50000,
                         help='how often to save a model ckpt')
     parser.add_argument('--load_from_checkpoint', action='store_true', default=False,
                         help='whether to load training from a checkpoint')
