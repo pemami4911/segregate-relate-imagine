@@ -186,6 +186,7 @@ if __name__ == '__main__':
                         help='random seed')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='Workers for dataloading')
+    parser.add_argument('--model', type=str, default='')
     parser.add_argument('--from_folder', type=str, default='',
                         help='Provide a folder containing generated images. Used ' \
                              'for computing FID for a model defined external to this repo.')
@@ -195,7 +196,7 @@ if __name__ == '__main__':
                         help='# of images to use for FID calculation')
     parser.add_argument('--img_dir', type=str, default='/tmp',
                         help='.png directory')
-    parser.add_argument('--batch_size', type=int, default=10,
+    parser.add_argument('--batch_size', type=int, default=100,
                         help='Generate images in batches')
     parser.add_argument('--data_dir', type=str, default='',
                         help='Parent folder of data')

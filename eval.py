@@ -30,6 +30,7 @@ def restore_from_checkpoint(args):
         else:
             new_state_dict[k] = v
     model.load_state_dict(new_state_dict)          
+    print(f'loaded model weights from checkpoint {args["checkpoint"]}')
     num_elements = 3 * model.img_size**2  # Assume three input channels
     # Goal is specified per pixel & channel so it doesn't need to
     # be changed for different resolutions etc.
@@ -38,7 +39,6 @@ def restore_from_checkpoint(args):
     geco_lr = args['g_lr'] * (64**2 / model.img_size**2)
     geco_sri = GECO(geco_goal, geco_lr, args['g_alpha'], args['g_init'],
             args['g_min'], args['g_speedup'])
-    geco_sri = geco_sri.to(args['device'])
     geco_sri.beta = state['beta']
     geco_sri.err_ema = state['err_ema']
 
@@ -68,6 +68,8 @@ def main(args):
     results = {'bpd_nelbo': [], 'fg_ari': []}
    
     #################### Evaluate ELBO ####################
+    print('Evaluating ELBO...')
+
     total_images = 0
 
     bpd_coeff = 1. / np.log(2.) / (3*64*64)
@@ -113,8 +115,10 @@ def main(args):
         total_images += imgs.shape[0]
     
     #################### Evaluate FG-ARI ####################
+    print('Evaluating FG-ARI...')
+
     if args['dataset'] == 'shapestacks':
-        dataset = ShapeStacksDataset(data_dir=args['data_dir'], mode='test')
+        dataset = ShapeStacksDataset(data_dir=args['data_dir'], mode='test', load_instances=True)
     else:
         raise ValueError(f'Unsupported dataset {args["dataset"]}')
     

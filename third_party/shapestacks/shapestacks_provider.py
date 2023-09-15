@@ -7,7 +7,7 @@ def _get_filenames_with_labels(mode, data_dir, split_dir):
   """
   if mode == 'train':
     scenario_list_file = os.path.join(split_dir, 'train.txt')
-  elif mode == 'eval':
+  elif mode == 'val':
     scenario_list_file = os.path.join(split_dir, 'eval.txt')
   elif mode == 'test':
     scenario_list_file = os.path.join(split_dir, 'test.txt')
