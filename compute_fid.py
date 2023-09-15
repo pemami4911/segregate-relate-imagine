@@ -21,7 +21,6 @@ import torch
 import numpy as np
 from PIL import Image
 
-from third_party.genesis_v2.geco import GECO
 from sri.model import SRI
 from sri.fixed_order_model import FixedOrderSRI
 from third_party.pytorch_fid import fid_score as FID

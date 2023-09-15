@@ -15,7 +15,10 @@ def restore_from_checkpoint(args):
     model_state_dict = state['model_state_dict']
 
     if args['model'] == 'SRI':
-        pass
+        model = SRI(args['K'], args['pixel_bound'], args['z_dim'], 
+                    args['semiconv'], args['kernel'], args['pixel_std'],
+                    args['dynamic_K'], args['image_likelihood'], False,
+                    args['img_size'], args['s_dim'], args['L'])
     elif args['model'] == 'FixedOrderSRI':
         model = FixedOrderSRI(args['slot_attention_iters'], args['K'],
                           args['pixel_bound'], args['z_dim'], 
@@ -203,8 +206,12 @@ if __name__ == '__main__':
     parser.add_argument('--K', type=int, default=9,
                         help='number of slots')       
     ###########################################                                                             
-    parser.add_argument('--slot_attention_iters', type=int, default=3, 
-                        help='number of iterations in slot attention')
+    parser.add_argument('--kernel', type=str, default='gaussian',
+                        help='{laplacian,gaussian,epanechnikov}')
+    parser.add_argument('--semiconv', action='store_true', default=True,
+                        help='semiconv for GENESISv2')
+    parser.add_argument('--dynamic_K', action='store_true', default=False,
+                        help='dynamic_K for GENESISv2')
     parser.add_argument('--pixel_bound',  action='store_true', default=True,
                         help='constrain decoder outputs')
     parser.add_argument('--img_size', type=int, default=64,
@@ -213,6 +220,8 @@ if __name__ == '__main__':
                         help='Global std dev for image likelihood')
     parser.add_argument('--image_likelihood', type=str, default='MoG-Normed',
                         help='MoG or MoG-Normed (use normalization constant)')
+    parser.add_argument('--slot_attention_iters', type=int, default=3, 
+                        help='number of iterations in slot attention')
 
     args = vars(parser.parse_args())
 
